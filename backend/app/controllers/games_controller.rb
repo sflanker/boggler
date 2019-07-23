@@ -67,7 +67,8 @@ class GamesController < ApplicationController
       render json: {
         state: new_state,
         current_time: current_time.tv_sec,
-        state_token: JWT.encode(new_state.to_hash, @private_key, JWT_ALGORITHM)
+        state_token: JWT.encode(new_state.to_hash, @private_key, JWT_ALGORITHM),
+        move_valid: true
       }
     end
   end
@@ -79,7 +80,7 @@ class GamesController < ApplicationController
       state: state,
       current_time: current_time.tv_sec,
       state_token: state_token,
-      moveValid: false,
+      move_valid: false,
       reason: reason
     }
   end
