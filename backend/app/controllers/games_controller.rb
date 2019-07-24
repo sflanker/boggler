@@ -34,25 +34,16 @@ class GamesController < ApplicationController
 
     current_time = Time.now
     state_token = params[:state_token]
-    # TODO handle error, return HTTP 400
-    state =
-        begin
-          PlayerGameState.deserialize(JWT.decode(state_token, @private_key, true)[0])
-        rescue JWT::DecodeError
-          nil
-        end
+    state = deserialize_state(state_token)
     if state.nil?
-      return render({
-        status: 400,
-        json: { code: "INVALID_STATE_TOKEN", message: "The specified state token is not valid" }
-      })
+      return invalid_state_response
     end
     move = params[:move].downcase
 
     # TODO allow game to have a language, get corresponding dictionary
     dictionary = EnglishDictionary.new
 
-    on_invalid = ->(reason) { invalid_move(state, current_time, state_token, reason) }
+    on_invalid = ->(reason) { invalid_move_response(state, current_time, state_token, reason) }
 
     if !params[:debug] && current_time > state.expiration
       on_invalid.call("Game timer expired.")
@@ -73,9 +64,46 @@ class GamesController < ApplicationController
     end
   end
 
+  def score
+    begin
+      params.require(:state_token)
+    rescue ActionController::ParameterMissing => err
+      return render({
+          status: 400,
+          json: { code: "PARAMETER_MISSING", message: "The required parameter '#{err.param}' was not specified." }
+        })
+    end
+
+    state_token = params[:state_token]
+    state = deserialize_state(state_token)
+    if state.nil?
+      return invalid_state_response
+    end
+
+    render json: {
+        score: state.moves.length == 0 ? 0 : (state.moves.map {|word| Boggle.score_word word}).reduce(:+)
+    }
+  end
+
   private
 
-  def invalid_move(state, current_time, state_token, reason)
+  def deserialize_state(state_token)
+    state =
+      begin
+        PlayerGameState.deserialize(JWT.decode(state_token, @private_key, true)[0])
+      rescue JWT::DecodeError
+        nil
+      end
+  end
+
+  def invalid_state_response
+    render({
+      status: 400,
+      json: {code: "INVALID_STATE_TOKEN", message: "The specified state token is not valid"}
+    })
+  end
+
+  def invalid_move_response(state, current_time, state_token, reason)
     render json: {
       state: state,
       current_time: current_time.tv_sec,

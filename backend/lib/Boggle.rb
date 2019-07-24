@@ -1,29 +1,41 @@
 require 'securerandom'
 
 BOGGLE_DICE = [
-    "bfiorx".chars.freeze,
-    "eefhiy".chars.freeze,
-    "denosw".chars.freeze,
-    "dknotu".chars.freeze,
-    "ahmors".chars.freeze,
-    "elpstu".chars.freeze,
-    "aaciot".chars.freeze,
-    "egkluy".chars.freeze,
-    "abjmoq".chars.freeze,
-    "ehinps".chars.freeze,
-    "egintv".chars.freeze,
-    "abilty".chars.freeze,
-    "adenvz".chars.freeze,
-    "acelrs".chars.freeze,
-    "gilruw".chars.freeze,
-    "acdemp".chars.freeze
-].freeze
+  "bfiorx",
+  "eefhiy",
+  "denosw",
+  "dknotu",
+  "ahmors",
+  "elpstu",
+  "aaciot",
+  "egkluy",
+  "abjmoq",
+  "ehinps",
+  "egintv",
+  "abilty",
+  "adenvz",
+  "acelrs",
+  "gilruw",
+  "acdemp"
+].map(&:chars).map(&:freeze).freeze
+
+SCORES = [
+  {len: 8, score: 11},
+  {len: 7, score: 5},
+  {len: 6, score: 3},
+  {len: 5, score: 2},
+  {len: 3, score: 1}
+].map(&:freeze).freeze
 
 class Boggle
   def self.roll_dice
     board = [[]]
-    (BOGGLE_DICE.map { |die| die[SecureRandom.random_number(6)] }).each do |die|
-      board[-1].length == 4 ? board << [die] : board[-1] << die
+    dice = Array.new(BOGGLE_DICE)
+    (0..15).each do |_|
+      # pick a random die
+      die = dice.delete_at(SecureRandom.random_number(dice.length))
+      letter = die[SecureRandom.random_number(6)]
+      board[-1].length == 4 ? board << [letter] : board[-1] << letter
     end
     board
   end
@@ -35,25 +47,45 @@ class Boggle
       (0..3).each do |j|
         if move[0] == board[i][j]
           queue << {positions: [[i, j]], remaining: move[1..-1]}
+
+          if move[0] == "q" && move[1] == "u"
+            # Throw in a free U with every Q
+            queue << {positions: [[i, j]], remaining: move[2..-1]}
+          end
         end
       end
     end
 
     while queue.length > 0
       current = queue.shift
-      adjacent = get_adjacent current[:positions][-1]
+      positions = current[:positions]
+      remaining = current[:remaining]
+      adjacent = get_adjacent positions[-1]
       matches =
-          adjacent.filter {|(i, j)| board[i][j] == current[:remaining][0] && !current[:positions].include?([i, j])}
+          adjacent.filter {|(i, j)| board[i][j] == remaining[0] && !positions.include?([i, j])}
       matches.each do |match|
-        if current[:remaining].length == 1
+        if remaining.length == 1
           # success
           return true
         end
-        queue << {positions: current[:positions] + [match], remaining: current[:remaining][1..-1]}
+        queue << {positions: positions + [match], remaining: remaining[1..-1]}
+        if remaining[0] == "q" && remaining[1] == "u"
+          # Throw in a free U with every Q
+          if remaining.length == 2
+            # success
+            return true
+          end
+          queue << {positions: positions + [match], remaining: remaining[2..-1]}
+        end
       end
     end
 
     return false
+  end
+
+  def self.score_word(word)
+    entry = SCORES.bsearch {|s| s[:len] <= word.length}
+    entry.nil? ? 0 : entry[:score]
   end
 
   private

@@ -3,4 +3,5 @@ Rails.application.routes.draw do
   resource :games, only: [:create]
 
   post '/move', to: 'games#move'
+  post '/score', to: 'games#score'
 end
