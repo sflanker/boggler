@@ -9,6 +9,7 @@
 .game-container {
   position: relative;
   width: fit-content;
+  width: -moz-fit-content;
 
   h1.title {
     display: flex;
@@ -22,6 +23,7 @@
 .game {
   position: relative;
   width: fit-content;
+  width: -moz-fit-content;
 }
 
 .board {
@@ -182,6 +184,7 @@
     margin-right: auto;
     box-sizing: border-box;
     width: fit-content;
+    width: -moz-fit-content;
     max-height: calc(100% - 80px);
     min-height: 300px;
     padding: 20px;
