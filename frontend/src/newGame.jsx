@@ -7,6 +7,8 @@ import { makeNotificationId, NotificationLevel, SHOW_NOTIFICATION_ACTION }
 import { withTimeout } from "withTimeout";
 import { BogglerAPIResponse } from "bogglerAPI";
 
+import "style/newGame.scss"
+
 const NEW_GAME_LOADING_ACTION = "new_game_loading";
 const NEW_GAME_LOADED_ACTION = "new_game_loaded";
 const NEW_GAME_FAILED_ACTION = "new_game_failed";

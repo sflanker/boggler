@@ -5,6 +5,8 @@ import { NewGame } from "newGame";
 import { Notifications } from "notifications";
 import { GameBoard } from "gameBoard";
 
+import "style/boggler.scss"
+
 class BogglerComponent extends Component {
   render() {
     return (
