@@ -11,8 +11,11 @@ import { gameStateReducer } from "./gameBoard";
 import { notificationsReducer } from "./notifications";
 
 function defaultReducer(state = { appState: {} }, action) {
-  if (action.appState) {
-    return { ...state, appState: Object.assign({}, state.appState, action.appState) };
+  if (action.payload && action.payload.appState) {
+    return {
+      ...state,
+      appState: Object.assign({}, state.appState, action.payload.appState)
+    };
   }
 
   return state;

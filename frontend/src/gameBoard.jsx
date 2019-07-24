@@ -1,13 +1,14 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
 
-import { Config } from "./config";
-import { NEW_GAME_LOADED_ACTION } from "./newGame";
-import { makeNotificationId, NotificationLevel, SHOW_NOTIFICATION_ACTION } from "./notifications";
-import { withTimeout } from "./withTimeout";
-import { BogglerAPIResponse } from "./bogglerAPI";
+import { Config } from "config";
+import { NewGameComponent, NEW_GAME_LOADED_ACTION } from "newGame";
+import { makeNotificationId, NotificationLevel, SHOW_NOTIFICATION_ACTION }
+  from "notifications";
+import { withTimeout } from "withTimeout";
+import { BogglerAPIResponse } from "bogglerAPI";
 
-import "../style/gameBoard.scss";
+import "style/gameBoard.scss";
 
 const WORD_CHANGED_ACTION = "word_changed";
 const PLAYING_WORD_ACTION = "playing_word";
@@ -15,6 +16,7 @@ const PLAY_WORD_FAILED_ACTION = "play_word_failed";
 const WORD_ACCEPTED_ACTION = "word_accepted";
 const WORD_REJECTED_ACTION = "word_rejected";
 const UPDATE_TIME_REMAINING_ACTION = "update_time_remaining";
+const GAME_OVER_ACTION = "game_over";
 
 const Keys = {
   Enter: "Enter",
@@ -25,38 +27,39 @@ function toTimeString(seconds) {
   return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, "0")}`;
 }
 
-export class GameBoardComponent extends Component {
+export class GameBoardComponent extends NewGameComponent {
   render() {
     return (
-      <div>
-        <div className="board">
-          <table>
-            <tbody>
+      <div className="game-container">
+        <h1 className="title">
+          <span>Boggler</span>
+          <button className="restart" onClick={this.onNewGame.bind(this)}>
+            <i className="material-icons">replay</i>
+          </button>
+        </h1>
+        <div className="game">
+          <div className="board">
+            <table>
+              <tbody>
               {this.props.board.map((row, i) =>
                 <tr key={`row ${i}`}>
                   {row.map((letter, j) =>
-                    <td key={`letter ${i},${j}`} className={this.isHighlighted(i, j) ? "highlight-letter" : undefined}>
-                      {letter}
+                    <td key={`letter ${i},${j}`}
+                        className={this.getLetterCSSClass(letter, i, j)}
+                        onClick={this.addLetter.bind(this, letter)}>
+                      <span>{letter}</span>
                     </td>
                   )}
                 </tr>
               )}
-            </tbody>
-          </table>
-        </div>
-        <div className="sidebar">
-          <div className="time-remaining">
-            {toTimeString(this.props.timeRemaining)}
+              </tbody>
+            </table>
           </div>
-          <div className="words">
-            <ul>
-              {this.props.wordList.map(w =>
-                <li key={w.value} className={w.accepted ? "accepted" : "pending"}>
-                  {w.value}
-                  {!w.accepted && <div className="pending-indicator">[Pending]</div>}
-                </li>
-              )}
-            </ul>
+          <div className="sidebar">
+            <div className="time-remaining">
+              {toTimeString(this.props.timeRemaining)}
+            </div>
+            {this.renderWordList()}
           </div>
         </div>
         <div className="input">
@@ -66,27 +69,102 @@ export class GameBoardComponent extends Component {
               type="text"
               pattern="[a-zA-Z]*"
               value={this.props.currentWord}
-              ref={(input) => { this.nameInput = input; }}
+              ref={(input) => {
+                this.wordInput = input;
+              }}
               onChange={this.onWordChanged.bind(this)}
-              onKeyPress={this.onKeyPress.bind(this)} />
+              onKeyPress={this.onKeyPress.bind(this)}
+              onKeyDown={this.onKeyDown.bind(this)}/>
           </label>
           <button title="[Enter]" onClick={this.onPlayWord.bind(this, false)}>Play</button>
-          <button title="[Ctrl]+[Enter]" onClick={this.onPlayWord.bind(this, true)}>Play & Continue</button>
+          <button title="[Shift]+[Enter]" onClick={this.onPlayWord.bind(this, true)}>Play & Continue</button>
         </div>
+        {this.props.finalScore != null ?
+          <div className="game-over">
+            <div>
+              <h2>Game Over</h2>
+              <dl>
+                <dt>Final Score</dt>
+                <dd>{this.props.finalScore}</dd>
+              </dl>
+              <h3>Your Words</h3>
+              {this.renderWordList(false, true)}
+              <button onClick={this.onNewGame.bind(this)}>Play Again</button>
+            </div>
+          </div> :
+          undefined}
       </div>
     );
   }
 
+  renderWordList(autoScroll = true, sorted = false) {
+    let words =
+      sorted ?
+        this.props.wordList.slice()
+          .sort((w1, w2) => (w2.value.length - w1.value.length) || w1.value.localeCompare(w2.value)) :
+        this.props.wordList;
+    return <div className="words">
+      <ul>
+        {words.map((w, ix) =>
+          <li key={w.value}
+              className={w.accepted ? "accepted" : "pending"}
+              ref={(item) => {
+                if (autoScroll && ix === this.props.wordList.length - 1) {
+                  this.lastWordListItem = item;
+                }
+              }}>
+            {w.value}
+            {!w.accepted && <div className="pending-indicator">[Pending]</div>}
+          </li>
+        )}
+      </ul>
+    </div>;
+  }
+
   componentDidMount() {
-    this.nameInput.focus();
+    this.wordInput.focus();
     // Start countdown
     this.timer = setInterval(
       () => {
         if (this.props.timeRemaining > 0) {
-          this.props.dispatch({
-            type: UPDATE_TIME_REMAINING_ACTION,
-            payload: {
-              timeRemaining: Math.round(Math.max(0, this.props.localExpiration - new Date()) / 1000)
+          let newTimeRemaining =
+            Math.round(
+              Math.max(0, this.props.localExpiration - new Date()) / 1000
+            );
+          this.props.dispatch(async dispatch => {
+            dispatch({
+              type: UPDATE_TIME_REMAINING_ACTION,
+              payload: {
+                timeRemaining: newTimeRemaining
+              }
+            });
+            if (newTimeRemaining === 0) {
+              let response = await withTimeout(
+                Config.networkTimeout,
+                fetch(`${Config.apiRoot}/score`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ state_token: this.props.stateToken })
+                })
+              );
+
+              if (response.status !== 200) {
+                console.log(`Unexpected HTTP response status: ${response.status}`);
+                dispatch({
+                  type: SHOW_NOTIFICATION_ACTION,
+                  payload: {
+                    level: NotificationLevel.Error,
+                    message: "An error occurred trying to submit a word.",
+                    id: makeNotificationId()
+                  }
+                });
+              } else {
+                let { score } = await response.json();
+                dispatch({
+                  type: GAME_OVER_ACTION,
+                  payload: { score }
+                })
+              }
             }
           });
         }
@@ -99,8 +177,31 @@ export class GameBoardComponent extends Component {
     clearInterval(this.timer);
   }
 
+  componentDidUpdate() {
+    if (this.lastWordListItem) {
+      this.lastWordListItem.scrollIntoView();
+    }
+  }
+
+  getLetterCSSClass(letter, i, j) {
+    let classList = `letter-${letter}`;
+
+    if (this.isHighlighted(i, j)) {
+      classList += " highlight-letter"
+    }
+
+    return classList;
+  }
+
   isHighlighted(i, j) {
     return this.props.highlights && this.props.highlights.includes(`${i},${j}`);
+  }
+
+  addLetter(letter) {
+    this.props.dispatch({
+      type: WORD_CHANGED_ACTION,
+      payload: { word: this.props.currentWord + letter }
+    });
   }
 
   onWordChanged(event) {
@@ -109,14 +210,18 @@ export class GameBoardComponent extends Component {
 
   onKeyPress(event) {
     if (event.key ===  Keys.Enter) {
-      if (event.ctrlKey) {
+      if (event.shiftKey || event.ctrlKey) {
         this.onPlayWord(true);
       } else {
         this.onPlayWord();
       }
 
       return false;
-    } else if(event.key ===  Keys.Escape) {
+    }
+  }
+
+  onKeyDown(event) {
+    if(event.key ===  Keys.Escape) {
       // Clear word
       this.props.dispatch({ type: WORD_CHANGED_ACTION, payload: { word: "" } });
     }
@@ -124,6 +229,17 @@ export class GameBoardComponent extends Component {
 
   onPlayWord(continueTyping = false) {
     let word = this.props.currentWord.toLocaleLowerCase();
+    if (word.length < 3) {
+      this.props.dispatch({
+        type: SHOW_NOTIFICATION_ACTION,
+        payload: {
+          level: NotificationLevel.Warning,
+          message: "You must enter at least three letters to play a word.",
+          id: makeNotificationId()
+        }
+      });
+      return;
+    }
     this.props.dispatch(async (dispatch) => {
       if (!continueTyping) {
         // clear the current word
@@ -177,7 +293,7 @@ export class GameBoardComponent extends Component {
                 message: `"${word}" was rejected. ${reason}`,
                 id: makeNotificationId()
               }
-            })
+            });
           }
 
         }
@@ -185,6 +301,13 @@ export class GameBoardComponent extends Component {
         GameBoardComponent.moveFailed(dispatch, word, error);
       }
     });
+
+    this.wordInput.focus();
+  }
+
+  onNewGame() {
+    super.onNewGame();
+    this.wordInput.focus();
   }
 
   static moveFailed(dispatch, word, error) {
@@ -203,7 +326,7 @@ export class GameBoardComponent extends Component {
 }
 
 function extractGameBoardState({ gameState: {
-    board, wordList, timeRemaining, localExpiration, stateToken, currentWord, highlights
+    board, wordList, timeRemaining, localExpiration, stateToken, currentWord, highlights, finalScore
   } }) {
 
   return {
@@ -213,7 +336,8 @@ function extractGameBoardState({ gameState: {
     localExpiration,
     stateToken,
     currentWord,
-    highlights
+    highlights,
+    finalScore
   };
 }
 
@@ -227,6 +351,10 @@ function calculateHighlights(board, word) {
         for (let j = 0; j < 4; j++) {
           if (board[i][j] === word[0]) {
             search.push({ positions: [[i, j]], remaining: word.substr(1) });
+
+            if (word[0] === "q" && word[1] === "u") {
+              search.push({ positions: [[i, j]], remaining: word.substr(2) });
+            }
           }
         }
       }
@@ -244,6 +372,10 @@ function calculateHighlights(board, word) {
           if (board[i][j] === remaining[0] && !positions.some(p => p[0] === i && p[1] === j)) {
             let newPositions = positions.concat([[i, j]]);
             search.push({ positions: newPositions, remaining: remaining.substr(1) });
+
+            if (remaining[0] === "q" && remaining[1] === "u") {
+              search.push({ positions: newPositions, remaining: remaining.substr(2) });
+            }
           }
         }
       }
@@ -258,18 +390,18 @@ function calculateHighlights(board, word) {
   );
 }
 
-function gameStateReducer(state = null, { type, gameState, payload }) {
+function gameStateReducer(state = null, { type, payload }) {
   switch (type) {
     case NEW_GAME_LOADED_ACTION: {
       // New game replaces existing game state
-      return { ...gameState, currentWord: "" };
+      return { ...payload.gameState, currentWord: "" };
     }
     // These actions shouldn't happen when state is null
     case WORD_CHANGED_ACTION: {
       return {
         ...state,
         currentWord: payload.word,
-        highlights: calculateHighlights(state.board, payload.word)
+        highlights: calculateHighlights(state.board, payload.word.toLocaleLowerCase())
       };
     }
     case PLAYING_WORD_ACTION: {
@@ -282,17 +414,22 @@ function gameStateReducer(state = null, { type, gameState, payload }) {
     case PLAY_WORD_FAILED_ACTION: {
       return {
         ...state,
+        ...payload.gameState,
         wordList: state.wordList.filter(w => w.value !== payload.word)
       };
     }
     case WORD_ACCEPTED_ACTION: {
       return {
         ...state,
-        wordList: state.wordList.map(w => w.value === payload.word ? { ...w, accepted: true } : w)
+        ...payload.gameState,
+        wordList: state.wordList.map(w => w.value === payload.word ? { ...w, accepted: true } : w),
       };
     }
     case UPDATE_TIME_REMAINING_ACTION: {
       return { ...state, timeRemaining: payload.timeRemaining };
+    }
+    case GAME_OVER_ACTION: {
+      return { ...state, finalScore: payload.score }
     }
   }
 

@@ -1,10 +1,11 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
 
-import { Config } from "./config";
-import {makeNotificationId, NotificationLevel, SHOW_NOTIFICATION_ACTION} from "./notifications";
-import { withTimeout } from "./withTimeout";
-import {BogglerAPIResponse} from "./bogglerAPI";
+import { Config } from "config";
+import { makeNotificationId, NotificationLevel, SHOW_NOTIFICATION_ACTION }
+  from "notifications";
+import { withTimeout } from "withTimeout";
+import { BogglerAPIResponse } from "bogglerAPI";
 
 const NEW_GAME_LOADING_ACTION = "new_game_loading";
 const NEW_GAME_LOADED_ACTION = "new_game_loaded";
@@ -25,7 +26,7 @@ class NewGameComponent extends Component {
 
   onNewGame() {
     this.props.dispatch(async dispatch => {
-      dispatch({ type: NEW_GAME_LOADING_ACTION, appState: { loadingNewGame: true } });
+      dispatch({ type: NEW_GAME_LOADING_ACTION, payload: { appState: { loadingNewGame: true } } });
 
       try {
         let response = await withTimeout(
@@ -41,8 +42,10 @@ class NewGameComponent extends Component {
         } else {
           dispatch({
             type: NEW_GAME_LOADED_ACTION,
-            appState: { loadingNewGame: false },
-            gameState: BogglerAPIResponse.toGameState(await response.json())
+            payload: {
+              appState: { loadingNewGame: false },
+              gameState: BogglerAPIResponse.toGameState(await response.json())
+            }
           })
         }
       } catch (error) {
@@ -62,7 +65,7 @@ class NewGameComponent extends Component {
       }
     });
 
-    dispatch({ type: NEW_GAME_FAILED_ACTION, appState: { loadingNewGame: false } });
+    dispatch({ type: NEW_GAME_FAILED_ACTION, payload: { appState: { loadingNewGame: false } } });
   }
 }
 
@@ -72,4 +75,4 @@ function extractNewGameState({ appState: { loadingNewGame } }) {
 
 const NewGame = connect(extractNewGameState)(NewGameComponent);
 
-export { NewGame, NEW_GAME_LOADING_ACTION, NEW_GAME_LOADED_ACTION };
+export { NewGame, NewGameComponent, NEW_GAME_LOADING_ACTION, NEW_GAME_LOADED_ACTION };

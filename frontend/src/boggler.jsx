@@ -1,9 +1,9 @@
 import React, { Component } from "react";
 import { connect } from "react-redux";
 
-import { NewGame } from "./newGame";
-import { Notifications } from "./notifications";
-import { GameBoard } from "./gameBoard";
+import { NewGame } from "newGame";
+import { Notifications } from "notifications";
+import { GameBoard } from "gameBoard";
 
 class BogglerComponent extends Component {
   render() {
